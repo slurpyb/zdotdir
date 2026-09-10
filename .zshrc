@@ -32,7 +32,7 @@ OMZ_SHA=7ea697fd8138550ddf7262456d412f0dcd1cbf84 # 2026-07-29
 antidote bundle mattmc3/z1
 setopt transient_rprompt
 source $ZDOTDIR/lib/rapid-prompt.zsh
-rapid_prompt z1host
+rapid_prompt z1
 
 antidote bundle <<EOBUNDLES
   # Better Zsh defaults
