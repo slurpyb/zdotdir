@@ -1,55 +1,75 @@
-# Changelog
+# ZDOTDIR Update History
 
-Significant changes to this Zsh configuration are documented here.
+## August 27, 2026 — Z1 v3 Update Released
 
-## 2026-08-27 — Migrate the editor stack to z1 v3
+An update to the ZDOTDIR shell environment has been released. The update will
+be applied the next time Zsh is started after pulling the latest files.
 
-### Added
+The specific changes include:
 
-- Installed and activated `zsh-patina` 1.10.0 on macOS and Ubuntu for command-line syntax highlighting.
-- Added `~/.local/bin` to login-shell `PATH`, making user-local tools available to interactive and non-interactive Zsh sessions.
-- Adopted z1 v3 functionality, including:
-  - Fish-style directory history with `prevd` and `nextd`.
-  - Alt-Left and Alt-Right directory navigation on an empty command line.
-  - Improved Home and End handling.
-  - Cursor-shape changes between vi insert and command modes.
-  - Ctrl-X Ctrl-X completion from history.
-  - Ctrl-X Ctrl-C clipboard copying.
-  - `mkcd` and `mktmpcd` helpers.
-  - Native clipboard portability and terminal key-sequence handling.
-  - Hidden-file matching through `glob_dots`.
+### Z1
 
-### Changed
+- Updated Z1 to version 3.0.0.
+- Removed the temporary Z1 v2 compatibility lock.
+- Added native history-based command suggestions.
+- Added improved multi-line history navigation.
+- Added highlighting of the matching text during history searches.
+- Added restoration of the original command after searching down past the
+  newest history match.
+- Added Fish-style directory history with `prevd` and `nextd`.
+- Added Alt-Left and Alt-Right navigation through directory history when the
+  command line is empty.
+- Improved Home and End key handling.
+- Added cursor shape changes for Vi insert and command modes.
+- Added Ctrl-X Ctrl-X completion from command history.
+- Added Ctrl-X Ctrl-C clipboard copying.
+- Added the `mkcd` and `mktmpcd` commands.
+- Improved terminal key sequence and clipboard support.
+- Hidden files are now included in normal glob matching.
 
-- Replaced `zsh-users/zsh-autosuggestions` with z1's native autosuggester.
-  - History-based suggestions and the existing `fg=242` appearance are preserved.
-  - Right Arrow, Ctrl-F, and Ctrl-E accept a complete suggestion; Alt-F accepts one word.
-  - The new implementation uses `POSTDISPLAY` instead of wrapping every ZLE widget.
-- Replaced `fast-syntax-highlighting` with `zsh-patina`.
-  - Invalid commands are highlighted in red.
-  - Existing files and directories are underlined.
-  - Highlighting colors and classification may differ from the previous implementation.
-- Replaced `zsh-history-substring-search` with z1's native history search.
-  - Up and Down retain substring search.
-  - Multiline navigation, match highlighting, and restoration of the originally typed line are improved.
-- Preserved vi keybindings, Fish-like global alias expansion, Alt-Space behavior, dot expansion, the rapid prompt, Antidote, `fzf-tab`, completions, SQLite history, `conf.d`, and machine-local configuration.
+### Command Suggestions
 
-### Removed
+- Replaced `zsh-users/zsh-autosuggestions` with the built-in Z1 suggestion
+  system.
+- Command suggestions retain their previous `fg=242` color.
+- Right Arrow, Ctrl-F, and Ctrl-E accept the complete suggestion.
+- Alt-F accepts the next suggested word.
+- Suggestions are now displayed without repeatedly wrapping editor widgets.
+- Removed unused completion-based suggestion strategies.
+- Removed unused suggestion enable, disable, and toggle widgets.
 
-- Removed the superseded `zsh-users/zsh-autosuggestions` plugin and its configuration.
-- Removed the incompatible `fast-syntax-highlighting` plugin.
-- Removed the superseded `zsh-history-substring-search` plugin and `bindkey-hss` helper.
-- Removed the temporary z1 v2 compatibility pin.
-- Removed unused advanced autosuggestion capabilities, including completion-based strategies and autosuggestion enable/disable widgets.
-- Removed FSH-specific command chromas and theming support; no custom FSH configuration was in use.
+### Syntax Highlighting
 
-### Fixed
+- Replaced `fast-syntax-highlighting` with `zsh-patina` 1.10.0.
+- Invalid commands are now displayed in red.
+- Existing files and directories are now underlined.
+- Improved command-line highlighting performance using a shared background
+  service.
+- Removed unused FSH command chromas and theme support.
+- Syntax colors may differ from previous versions.
 
-- Fixed recursive ZLE widget wrapping on Ubuntu that caused `maximum nested function level reached` after every command.
-- Restricted the machine-local configuration loader to `*.zsh`, preventing `glob_dots` from treating `.gitignore` as a shell script.
+### History
 
-### Compatibility notes
+- Replaced `zsh-history-substring-search` with Z1's built-in history search.
+- Up Arrow and Down Arrow continue to search for commands containing the text
+  already entered.
+- Removed the obsolete `bindkey-hss` helper.
+- Ctrl-P, Ctrl-N, and Vi command-mode `k` and `j` are no longer explicitly
+  assigned to substring search and now use their standard Zsh behavior.
 
-- z1's native autosuggester requires Zsh 5.9; both current machines meet this requirement.
-- Ctrl-P/Ctrl-N and vi-command-mode `k`/`j` are no longer explicitly mapped to substring search. Arrow Up and Down continue to provide substring search.
-- `zsh-patina` runs a small shared background daemon.
+### Fixes
+
+- Fixed a recursive editor widget condition that caused `maximum nested
+  function level reached` to appear after every command on Ubuntu.
+- Fixed machine-local startup attempting to execute `.gitignore` after hidden
+  file globbing was enabled.
+- Added `~/.local/bin` to the login shell path.
+- Improved detection of optional Node tooling on machines without `fnm`.
+
+### General
+
+- Installed `zsh-patina` on macOS and Ubuntu.
+- Retained Vi keybindings, Fish-style alias expansion, Alt-Space behavior, dot
+  expansion, Rapid Prompt, Antidote, `fzf-tab`, completions, SQLite history,
+  `conf.d`, and machine-local configuration support.
+- Z1 command suggestions now require Zsh 5.9 or later.
