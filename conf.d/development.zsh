@@ -2,7 +2,11 @@
 # Development tools
 #
 
+# User-installed JavaScript runtimes.
+export BUN_INSTALL=${BUN_INSTALL:-$HOME/.bun}
 path+=(
+  $XDG_DATA_HOME/fnm(N)
+  $BUN_INSTALL/bin(N)
   ${CARGO_HOME:-?}/bin(N)
   ${GOPATH:-?}/bin(N)
   ${NIMBLE_DIR:-$HOME/.nimble}/bin(N)

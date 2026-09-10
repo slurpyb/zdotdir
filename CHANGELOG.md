@@ -1,5 +1,21 @@
 # ZDOTDIR Update History
 
+## August 27, 2026 — Seegson Toolchain Update Released
+
+An update to JavaScript toolchain discovery has been released. The specific
+changes include:
+
+### Environment
+
+- Added `~/.local/share/fnm` to the shared Zsh path when present.
+- Added `~/.bun/bin` to the shared Zsh path when present.
+- Added `BUN_INSTALL` with the standard `~/.bun` installation location.
+- Added `~/bin` to login-shell paths alongside `~/.local/bin`.
+- Enabled the existing Zsh-native `fnm` initialization on machines where `fnm`
+  is installed.
+- Retained the existing Zsh-native `direnv` integration without loading the
+  Bash-specific Paleo Hero toolchain script.
+
 ## August 27, 2026 — Post-Pull Update Released
 
 An update to ZDOTDIR maintenance has been released. The specific changes
