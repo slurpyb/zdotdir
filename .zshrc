@@ -29,7 +29,9 @@ source <(antidote init)
 OMZ_SHA=7ea697fd8138550ddf7262456d412f0dcd1cbf84 # 2026-07-29
 
 # Show an instant prompt
-antidote bundle mattmc3/z1
+# Pin z1 because v3's autosuggestion widgets conflict with the separate
+# zsh-users/zsh-autosuggestions plugin loaded below.
+antidote bundle mattmc3/z1 pin:1465a1f778d590bef3764ef55d1c4afafa56e443
 setopt transient_rprompt
 source $ZDOTDIR/lib/rapid-prompt.zsh
 rapid_prompt z1
