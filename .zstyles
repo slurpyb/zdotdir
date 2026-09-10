@@ -39,7 +39,11 @@ noexpand=(
 )
 zstyle ':zsh_custom:plugin:editor:auto-expand-aliases' noexpand $noexpand
 
-# Set the key mapping style to 'emacs' or 'vi'.
+# Use vi keybindings and keep the existing autosuggestion color with z1 v3.
+zstyle ':z1:editor' keymap 'vi'
+zstyle ':z1:editor' autosuggest-highlight 'fg=242'
+
+# Set the key mapping style for the remaining custom editor extensions.
 zstyle ':zsh_custom:plugin:editor' key-bindings 'vi'
 
 # Enable all the editor extensions.
