@@ -1,5 +1,19 @@
 # ZDOTDIR Update History
 
+## August 27, 2026 — Host Identification Update Released
+
+An update to the ZDOTDIR prompt has been released. The specific changes
+include:
+
+### Prompt
+
+- Added the current short hostname to the beginning of the prompt.
+- Added the `z1host` prompt as a small extension of the standard Z1 prompt.
+- Hostnames remain visible in both the rapid initial prompt and the completed
+  prompt.
+- Ripley and Seegson can now be identified without checking the terminal window
+  title.
+
 ## August 27, 2026 — Z1 v3 Update Released
 
 An update to the ZDOTDIR shell environment has been released. The update will
