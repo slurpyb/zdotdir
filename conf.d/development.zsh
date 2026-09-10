@@ -20,7 +20,9 @@ path+=(
 alias setjavahome='export JAVA_HOME=$(/usr/libexec/java_home)'
 
 # Node
-eval "$(fnm env --use-on-cd --shell zsh)"
+if (( $+commands[fnm] )); then
+  eval "$(fnm env --use-on-cd --shell zsh)"
+fi
 
 # Ruby
 export GEM_HOME="${GEM_HOME:-$XDG_DATA_HOME/gem}"
