@@ -1,5 +1,17 @@
 # ZDOTDIR Update History
 
+## August 27, 2026 — Shell Identity Update Released
+
+An update to shell identification has been released. The specific changes
+include:
+
+### Prompt
+
+- Added `user@hostname` to the right prompt using native Zsh login escapes.
+- Preserved Z1's existing asynchronous Git status and transient prompt behavior.
+- Added explicit style resets so shell identity uses normal terminal text.
+- Added no prompt engine, plugin, subprocess, or private Z1 integration.
+
 ## August 27, 2026 — Seegson Toolchain Update Released
 
 An update to JavaScript toolchain discovery has been released. The specific
