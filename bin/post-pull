@@ -1,0 +1,91 @@
+#!/bin/sh
+# Apply and verify machine setup after pulling changes to ZDOTDIR.
+
+set -eu
+
+zdotdir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+os=$(uname -s)
+
+printf 'ZDOTDIR post-pull: %s on %s\n' "$zdotdir" "$os"
+
+mkdir -p "$HOME/.local/config/zsh/conf.d"
+
+expected_zshenv='export ZDOTDIR=~/.config/zsh
+[[ -f $ZDOTDIR/.zshenv ]] && . $ZDOTDIR/.zshenv'
+
+if [ ! -e "$HOME/.zshenv" ]; then
+  printf '%s\n' "$expected_zshenv" > "$HOME/.zshenv"
+  printf 'Created %s/.zshenv\n' "$HOME"
+elif [ "$(cat "$HOME/.zshenv")" != "$expected_zshenv" ]; then
+  printf 'warning: %s/.zshenv differs from the expected ZDOTDIR bootstrap\n' "$HOME" >&2
+  printf '         left it unchanged\n' >&2
+fi
+
+missing_packages=''
+need_command() {
+  command_name=$1
+  package_name=$2
+  command -v "$command_name" >/dev/null 2>&1 ||
+    missing_packages="$missing_packages $package_name"
+}
+
+case "$os" in
+  Darwin)
+    need_command git git
+    need_command zsh zsh
+    need_command fzf fzf
+    need_command zoxide zoxide
+    need_command sqlite3 sqlite
+    need_command nvim neovim
+    need_command zsh-patina zsh-patina
+
+    if [ -n "$missing_packages" ]; then
+      printf 'Missing Homebrew formulae:%s\n' "$missing_packages" >&2
+      printf 'Install with: brew install%s\n' "$missing_packages" >&2
+    fi
+    ;;
+
+  Linux)
+    distro=linux
+    if [ -r /etc/os-release ]; then
+      # shellcheck disable=SC1091
+      . /etc/os-release
+      distro=${ID:-linux}
+    fi
+
+    need_command git git
+    need_command zsh zsh
+    need_command fzf fzf
+    need_command zoxide zoxide
+    need_command sqlite3 sqlite3
+    need_command nvim neovim
+    need_command wl-copy wl-clipboard
+
+    case "$distro" in
+      ubuntu|debian)
+        if [ -n "$missing_packages" ]; then
+          printf 'Missing apt packages:%s\n' "$missing_packages" >&2
+          printf 'Install with: sudo apt-get install%s\n' "$missing_packages" >&2
+        fi
+        ;;
+      *)
+        [ -z "$missing_packages" ] ||
+          printf 'Missing commands supplied by:%s\n' "$missing_packages" >&2
+        ;;
+    esac
+
+    if ! command -v zsh-patina >/dev/null 2>&1; then
+      printf '%s\n' 'Missing zsh-patina: https://github.com/michel-kraemer/zsh-patina/releases/latest' >&2
+    fi
+    ;;
+
+  *)
+    printf 'warning: unsupported operating system: %s\n' "$os" >&2
+    ;;
+esac
+
+find "$zdotdir" -type f \( -name '*.zsh' -o -name '.zshenv' -o -name '.zprofile' -o -name '.zshrc' -o -name '.zstyles' \) \
+  -not -path '*/.git/*' -not -path '*/.antidote/*' \
+  -exec zsh -n {} +
+
+printf '%s\n' 'ZDOTDIR post-pull: configuration is valid'

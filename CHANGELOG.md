@@ -1,5 +1,23 @@
 # ZDOTDIR Update History
 
+## August 27, 2026 — Post-Pull Update Released
+
+An update to ZDOTDIR maintenance has been released. The specific changes
+include:
+
+### Updates
+
+- Added the `zdot-update` command to pull changes with fast-forward-only safety.
+- Added an operating-system-aware post-pull check for macOS and Linux.
+- Added validation of the root `.zshenv`, machine-local directories, shell
+  dependencies, and Zsh syntax after each update.
+- Added Homebrew package guidance on macOS and apt package guidance on Ubuntu
+  and Debian when dependencies are missing.
+- Existing `.zshenv` files with unexpected contents are reported and left
+  unchanged.
+- Antidote plugins and privileged packages remain unchanged unless updated
+  separately.
+
 ## August 27, 2026 — Host Identification Update Released
 
 An update to the ZDOTDIR prompt has been released. The specific changes

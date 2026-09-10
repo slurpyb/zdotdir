@@ -1,0 +1,8 @@
+#!/usr/bin/env zsh
+# Pull ZDOTDIR changes and apply the machine-specific post-pull checks.
+
+emulate -L zsh
+
+local zdotdir=${ZDOTDIR:-$HOME/.config/zsh}
+command git -C "$zdotdir" pull --ff-only || return
+"$zdotdir/bin/post-pull"
