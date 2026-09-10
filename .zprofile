@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
 
 export SHELL_SESSIONS_DISABLE=1
-export EDITOR=nvim
-export VISUAL=code
+export EDITOR=nano
+export VISUAL=zed

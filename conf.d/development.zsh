@@ -13,10 +13,14 @@ path+=(
   $HOMEBREW_PREFIX/share/npm/bin(N)
   $HOMEBREW_PREFIX/lib/ruby/gems/*/bin(N)
   $HOME/.gem/ruby/*/bin(N)
+  $HOME/.cache/.bun/bin(N)
 )
 
 # Java
 alias setjavahome='export JAVA_HOME=$(/usr/libexec/java_home)'
+
+# Node
+eval "$(fnm env --use-on-cd --shell zsh)"
 
 # Ruby
 export GEM_HOME="${GEM_HOME:-$XDG_DATA_HOME/gem}"

@@ -1,6 +1,7 @@
 #!/usr/bin/env zsh
 #
-# .zshenv: Zsh environment file, loaded always.
+# .zshenv: Zsh environment file
+# This file is always loaded.
 #
 
 export ZDOTDIR=${ZDOTDIR:-$HOME/.config/zsh}

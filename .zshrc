@@ -65,7 +65,6 @@ EOBUNDLES
 # Local settings
 [ -r $HOME/.local/config/zsh/.zshrc.local ] \
 && . $HOME/.local/config/zsh/.zshrc.local
-
 # Run the end of zshrc hook manually
 run_post_zshrc
 

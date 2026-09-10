@@ -70,9 +70,31 @@ alias print-fpath='for fp in $fpath; do echo $fp; done; unset fp'
 alias print-path='echo $PATH | tr ":" "\n"'
 alias print-functions='print -l ${(k)functions[(I)[^_]*]} | sort'
 
-# todo-txt
-alias t="todo.sh"
-alias todos="$VISUAL $HOME/Desktop/todo.txt"
-
 # auto-orient images based on exif tags
 alias autorotate="jhead -autorot"
+
+# Preferred variations of the essentials
+alias cp='cp -iv'                           # Preferred 'cp' implementation
+alias mv='mv -iv'                           # Preferred 'mv' implementation
+alias mkdir='mkdir -pv'                     # Preferred 'mkdir' implementation
+
+
+#   memHogsTop, memHogsPs:  Find memory hogs
+alias memHogsTop='top -1 -o RES | head -20'
+alias memHogsPs='ps wwaxm -o pid,stat,vsize,rss,time,command | head -10'
+
+#   cpuHogs:  Find CPU hogs
+alias cpuHogs='ps wwaxr -o pid,stat,%cpu,time,command | head -10'
+
+#   topForever:  Continual 'top' listing (every 10 seconds)
+alias topForever='top -d 10 -o %CPU'
+
+alias myip='curl icanhazip.com'                     # myip:         Public facing IP Address
+alias netCons='lsof -i'                             # netCons:      Show all open TCP/IP sockets
+alias lsock='sudo lsof -i -P'                       # lsock:        Display open sockets
+alias lsockU='sudo lsof -nP | grep UDP'             # lsockU:       Display only open UDP sockets
+alias lsockT='sudo lsof -nP | grep TCP'             # lsockT:       Display only open TCP sockets
+alias openPorts='sudo lsof -i | grep LISTEN'        # openPorts:    All listening connections
+
+alias clone='git clone'
+alias pubkey='cat ~/.ssh/id_ed25519.pub'
