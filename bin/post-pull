@@ -84,8 +84,10 @@ case "$os" in
     ;;
 esac
 
+"$zdotdir/bin/setup-herdr"
+
 find "$zdotdir" -type f \( -name '*.zsh' -o -name '.zshenv' -o -name '.zprofile' -o -name '.zshrc' -o -name '.zstyles' \) \
   -not -path '*/.git/*' -not -path '*/.antidote/*' \
-  -exec zsh -n {} +
+  -exec zsh -n {} \;
 
 printf '%s\n' 'ZDOTDIR post-pull: configuration is valid'

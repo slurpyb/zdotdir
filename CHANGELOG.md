@@ -1,5 +1,14 @@
 # ZDOTDIR Update History
 
+## September 13, 2026 — Herdr File Navigation Released
+
+### Herdr
+
+- Added idempotent setup for the pinned `herdr-nvim` plugin.
+- Added `prefix+e` for the right-side Neovim pane and `prefix+o` for the floating file picker without replacing existing key assignments.
+- Integrated Herdr setup into the existing post-pull workflow so each configured machine receives the same navigation behavior.
+- Fixed post-pull syntax validation so every Zsh configuration file is checked.
+
 ## August 27, 2026 — Shell Identity Update Released
 
 An update to shell identification has been released. The specific changes

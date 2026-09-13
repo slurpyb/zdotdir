@@ -50,9 +50,17 @@ export ZDOTDIR=~/.config/zsh
 [[ -f $ZDOTDIR/.zshenv ]] && . $ZDOTDIR/.zshenv
 EOF
 
+# apply machine setup and validate the checkout
+$ZDOTDIR/bin/post-pull
+
 # load zsh
 zsh
 ```
+
+The post-pull setup also installs the pinned `herdr-nvim` plugin when Herdr is
+available. This makes file references in agent output open in a Neovim pane on
+the right. Herdr uses `prefix+e` to toggle that pane and `prefix+o` to open its
+floating file picker.
 
 ## Performance
 

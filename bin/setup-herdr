@@ -1,0 +1,77 @@
+#!/bin/sh
+# Install and configure the shared Herdr file-opening workflow.
+
+set -eu
+
+plugin_id='chmarax.herdr-nvim'
+plugin_source='ChmaraX/herdr-nvim'
+plugin_ref='v1.0.0'
+
+if ! command -v herdr >/dev/null 2>&1; then
+  printf '%s\n' 'Herdr is not installed; skipped Herdr plugin setup.' >&2
+  exit 0
+fi
+
+if ! plugin=$(herdr plugin list --plugin "$plugin_id" --json); then
+  printf 'error: could not inspect Herdr plugin %s\n' "$plugin_id" >&2
+  exit 1
+fi
+if ! printf '%s' "$plugin" | grep -Fq "\"requested_ref\":\"$plugin_ref\""; then
+  herdr plugin install "$plugin_source" --ref "$plugin_ref" --yes
+fi
+
+config_dir=${XDG_CONFIG_HOME:-$HOME/.config}/herdr
+config_path=$config_dir/config.toml
+mkdir -p "$config_dir"
+touch "$config_path"
+
+has_assignment() {
+  name=$1
+  value=$2
+  awk -v name="$name" -v value="$value" '
+    /^[[:space:]]*#/ { next }
+    {
+      line = $0
+      sub(/[[:space:]]+#.*$/, "", line)
+      equals = index(line, "=")
+      if (equals == 0) next
+      left = substr(line, 1, equals - 1)
+      right = substr(line, equals + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", left)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", right)
+      if (left == name && (right == "\"" value "\"" || right == "\047" value "\047")) found = 1
+    }
+    END { exit found ? 0 : 1 }
+  ' "$config_path"
+}
+
+add_binding() {
+  key=$1
+  command=$2
+  description=$3
+
+  if has_assignment command "$command"; then
+    return
+  fi
+
+  if has_assignment key "$key"; then
+    printf 'warning: Herdr key %s is already assigned; skipped %s\n' "$key" "$command" >&2
+    return
+  fi
+
+  cat >> "$config_path" <<EOF
+
+[[keys.command]]
+key = "$key"
+type = "plugin_action"
+command = "$command"
+description = "$description"
+EOF
+}
+
+add_binding 'prefix+e' "$plugin_id.toggle" 'toggle nvim sidebar'
+add_binding 'prefix+o' "$plugin_id.pick-file" 'open file from agent output'
+
+herdr config check
+herdr server reload-config >/dev/null 2>&1 || true
+printf '%s\n' "Herdr file-opening workflow is configured ($plugin_id $plugin_ref)."
