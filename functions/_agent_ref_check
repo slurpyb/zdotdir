@@ -1,0 +1,27 @@
+# Rosie sometimes warns/skips with exit zero. Confirm a requested remote
+# reference is registered and readable before allowing Pi to start.
+emulate -L zsh
+autoload -Uz _agent_remote_source
+local source="$1" selected="$2" expected name recorded ref sha timestamp pin kind file
+local -a reply
+# Local-path Rosie installs have their own symlink semantics; leave those to it.
+_agent_remote_source "$source" || return 0
+if [[ "$reply[2]" == --npm ]]; then
+    expected="npm:$reply[1]#"
+else
+    expected="${reply[1]%%@*}${selected:+#$selected}"
+fi
+if [[ -f .agents/rosie.lock ]]; then
+    while read -r name recorded ref sha timestamp pin kind; do
+        [[ -n "$name" && "$name" != \#* && "$kind" == ref ]] || continue
+        if [[ "$reply[2]" == --npm ]]; then
+            [[ "$recorded" == "$expected"* ]] || continue
+        else
+            [[ "$recorded" == "$expected" ]] || continue
+        fi
+        file="$PWD/.agents/references/$name/REFERENCE.md"
+        [[ "${file:A}" == "${PWD:A}/.agents/references/"* && -r "$file" ]] && return 0
+    done < .agents/rosie.lock
+fi
+print -u2 -r -- "agent: Rosie did not register a readable reference for $source $selected"
+return 2

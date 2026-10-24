@@ -1,0 +1,28 @@
+emulate -L zsh
+autoload -Uz _agent_check_plugins
+_agent_check_plugins || return 1
+
+local plugins_dir="${PLUGINS:A}"
+local -a plugin_paths plugin_names
+local plugin_path selected name
+
+plugin_paths=("$plugins_dir"/*(ND/))
+(( ${#plugin_paths} )) || return 0
+
+for plugin_path in "${plugin_paths[@]}"; do
+    plugin_names+=("${plugin_path:t}")
+done
+
+selected=$(
+    printf '%s\n' "${plugin_names[@]}" |
+        fzf --height=100% --cycle --multi \
+            --layout=reverse --info=inline \
+            --header='Select plugin(s)'
+) || return $?
+
+[[ -n "$selected" ]] || return 0
+
+# One argument per line; callers must split on newlines, not spaces.
+for name in "${(@f)selected}"; do
+    printf '%s\n' --extension "$plugins_dir/$name"
+done

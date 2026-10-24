@@ -1,0 +1,13 @@
+emulate -L zsh
+autoload -Uz _agent_check_plugins
+_agent_check_plugins || return 1
+
+local plugins_dir="${PLUGINS}"
+local marker="$1"
+local -a files
+local file
+
+files=("$plugins_dir"/**/"$marker"(ND.))
+for file in "${files[@]}"; do
+    print -r -- "${file:h}"
+done

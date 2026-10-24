@@ -1,0 +1,12 @@
+# Read a local text file into the caller's REPLY, without evaluating it.
+emulate -L zsh
+local file="${1:A}"
+if [[ ! -f "$file" || ! -r "$file" ]]; then
+    print -u2 -r -- "agent: cannot read file: $1"
+    return 2
+fi
+if [[ -s "$file" ]] && ! LC_ALL=C grep -Iq '' -- "$file"; then
+    print -u2 -r -- "agent: expected a text file: $1"
+    return 2
+fi
+REPLY=$(<"$file")

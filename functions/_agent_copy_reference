@@ -1,0 +1,28 @@
+# Copy into a per-invocation directory; never overwrite existing references.
+emulate -L zsh
+autoload -Uz _agent_reference_entry
+local source="${1:A}" entry root destination REPLY
+local output="${PWD:A}/.agents/references/agent"
+_agent_reference_entry "$source" || return
+entry="$REPLY"
+root="$source"
+[[ "${entry:t}" != SKILL.md ]] || root="${entry:h}"
+if [[ -d "$root" && "$output/" == "$root/"* ]]; then
+    print -u2 -r -- 'agent: reference source contains the output directory; select a file or skill'
+    return 2
+fi
+mkdir -p -- "$output" || return
+destination=$(mktemp -d "$output/ref.XXXXXXXX") || return
+if [[ -d "$root" ]]; then
+    if ! cp -RL -- "$root/." "$destination/"; then
+        rm -rf -- "$destination"
+        return 2
+    fi
+else
+    if ! cp -- "$entry" "$destination/"; then
+        rm -rf -- "$destination"
+        return 2
+    fi
+fi
+# reply is an output array owned by our caller, not a local variable.
+reply+=("$destination/${entry:t}")

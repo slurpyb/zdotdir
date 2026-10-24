@@ -297,3 +297,42 @@ domain_audit() {
     printf "| %-20s | %-54s |\n" "Expires" "$(__da_fit "${expires:-"(none)"}" $__da_width)"
     printf "%s\n" "$sep"
 }
+
+
+if [[ -n "${KITTY_PASSWORD_MANAGER}" ]]; then
+    _bw_unlock() {
+        local cache_file="${HOME}/.cache/kpm.session"
+
+        [[ -f "${cache_file}" ]] && source "${cache_file}"
+
+        bw unlock --check &>/dev/null
+
+        if [[ $? -ne 0 ]]; then
+            (bw login --check &>/dev/null || bw login --apikey) && bw sync -f &>/dev/null
+
+            export BW_SESSION="$(bw unlock --raw)"
+
+            mkdir -p "$(dirname ${cache_file})"
+
+            echo "export BW_SESSION=\"${BW_SESSION}\"" >"${cache_file}"
+        fi
+    }
+
+    _bw_enter_pw() {
+        _bw_unlock
+
+        bw unlock --check &>/dev/null
+
+        if [[ $? -eq 0 ]]; then
+            local pw=$(echo "Name\tUsername\tPassword\n$(bw list items | sed 's/ /\\u00a0/g' | jq -r 'map(select(.type == 1)) | .[] | "\(.name) \(.login.username) \(.login.password)"')" | column -t | fzf --height=100% --cycle --layout=reverse --info=inline --with-nth=1,2 --header='Select an account' --header-lines=1 | tr -s ' ' | cut -d ' ' -f 3 | sed 's/\\u00a0/ /g')
+
+            [[ -n "${pw}" ]] && echo "${pw}" | kitty @ send-text -m id:$1 --stdin
+        fi
+    }
+
+    () {
+        trap 'exit' EXIT
+
+        _bw_enter_pw "${KITTY_PASSWORD_MANAGER}"
+    }
+fi

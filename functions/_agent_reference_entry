@@ -1,0 +1,15 @@
+# Find the readable entry point of a local or staged reference.
+emulate -L zsh
+local source="$1" name
+if [[ -f "$source" ]]; then
+    REPLY="${source:A}"
+    return 0
+fi
+for name in SKILL.md REFERENCE.md README.md index.md; do
+    if [[ -f "$source/$name" ]]; then
+        REPLY="${source:A}/$name"
+        return 0
+    fi
+done
+print -u2 -r -- "agent: reference has no SKILL.md, REFERENCE.md, README.md or index.md: $source"
+return 2

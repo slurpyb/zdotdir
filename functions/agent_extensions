@@ -1,0 +1,3 @@
+emulate -L zsh
+autoload -Uz _agent_marker_dirs
+_agent_marker_dirs EXTENSION.md

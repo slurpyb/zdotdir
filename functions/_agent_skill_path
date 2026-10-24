@@ -1,0 +1,25 @@
+# Resolve a local skill by explicit path or its directory name under PLUGINS.
+emulate -L zsh
+local name="$1" root="$2" candidate
+local -a matches
+if [[ -e "${name/#\~/$HOME}" ]]; then
+    candidate="${name/#\~/$HOME}"
+    [[ ! -d "$candidate" ]] || candidate="$candidate/SKILL.md"
+    if [[ ! -f "$candidate" ]]; then
+        print -u2 -r -- "agent: no SKILL.md at: $name"
+        return 2
+    fi
+    REPLY="${candidate:A}"
+    return 0
+fi
+if [[ -n "$root" && -d "$root" ]]; then
+    for candidate in "$root"/*/skills/**/SKILL.md(N.); do
+        [[ "${candidate:h:t}" == "$name" ]] && matches+=("${candidate:A}")
+    done
+fi
+matches=("${(@u)matches}")
+case ${#matches} in
+    1) REPLY="$matches[1]" ;;
+    0) print -u2 -r -- "agent: skill '$name' not found; use a skill directory or SKILL.md path"; return 2 ;;
+    *) print -u2 -r -- "agent: ambiguous skill '$name'; use an explicit path:"; printf '%s\n' "${matches[@]}" >&2; return 2 ;;
+esac

@@ -1,0 +1,23 @@
+# Inline skill instructions so they execute even with composed context attached.
+emulate -L zsh
+autoload -Uz _agent_text
+local file="$1" body
+_agent_text "$file" || return
+body="${REPLY//$'\r\n'/$'\n'}"
+if [[ "$body" == $'---\n'* ]]; then
+    body="${body#*$'\n'}"
+    if [[ "$body" == *$'\n---\n'* ]]; then
+        body="${body#*$'\n---\n'}"
+    elif [[ "$body" == *$'\n---' ]]; then
+        body=''
+    else
+        print -u2 -r -- "agent: unterminated skill frontmatter: $file"
+        return 2
+    fi
+fi
+REPLY="<skill>
+Source: $file
+Resolve supporting files relative to ${file:h}.
+
+$body
+</skill>"

@@ -1,0 +1,20 @@
+# Rosie remains responsible for --ref semantics; one selection per invocation.
+emulate -L zsh
+autoload -Uz _agent_remote_source
+local source="$1" mode="$2" selected="$3" directory="$4"
+local -a reply command_args
+if _agent_remote_source "$source"; then
+    source="$reply[1]"
+    command_args=(rosie install "$source")
+    [[ "$reply[2]" != --npm ]] || command_args+=(--npm)
+else
+    command_args=(rosie install "${source/#\~/$HOME}")
+fi
+if [[ "$mode" == ref ]]; then
+    command_args+=(--ref)
+    [[ -z "$selected" ]] || command_args+=(--skill "$selected")
+elif [[ -n "$selected" ]]; then
+    command_args+=("$selected")
+fi
+command_args+=(--agent pi --yes)
+(cd -- "$directory" && command "${command_args[@]}") >&2

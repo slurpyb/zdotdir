@@ -98,3 +98,8 @@ alias openPorts='sudo lsof -i | grep LISTEN'        # openPorts:    All listenin
 
 alias clone='git clone'
 alias pubkey='cat ~/.ssh/id_ed25519.pub'
+
+alias ocx="bun \"/Users/jordan/repos/kdcokenny/ocx/packages/cli/dist/index.js\""
+alias skillsRepo="cd $XDG_SKILLS_REPO"
+alias skills='find "$XDG_SKILLS_REPO/plugins" -type f -name SKILL.md'
+# alias getPlugins="find \"$XDG_SKILLS_REPO\" -mindepth 1 -maxdepth 1 -type d -name dirname {};"

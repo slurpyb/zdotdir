@@ -1,0 +1,19 @@
+# Return (normalized-source npm-flag) in reply, or fail for ordinary URLs/paths.
+emulate -L zsh
+local source="$1"
+reply=()
+[[ ! -e "${source/#\~/$HOME}" ]] || return 1
+if [[ "$source" == npm:* ]]; then
+    reply=("${source#npm:}" --npm)
+    return 0
+fi
+case "$source" in
+    https://github.com/*|http://github.com/*|github.com/*)
+        source="${source#*github.com/}" ;;
+esac
+source="${source%/}"
+if [[ "$source" =~ '^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9_][A-Za-z0-9_.-]*(@[^/]+)?$' ]]; then
+    reply=("${source%.git}")
+    return 0
+fi
+return 1

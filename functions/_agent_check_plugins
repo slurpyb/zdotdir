@@ -1,0 +1,6 @@
+emulate -L zsh
+: "${PLUGINS:=${AGENT_PLUGINS_DIR:-}}"
+if [[ -z "$PLUGINS" || ! -d "$PLUGINS" ]]; then
+    print -u2 -r -- 'Set PLUGINS or AGENT_PLUGINS_DIR to an existing directory.'
+    return 1
+fi

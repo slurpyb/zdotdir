@@ -1,0 +1,1 @@
+/Users/jordan/repos/slurpyb/zsh-repo-cd/conf.d/repo.zsh

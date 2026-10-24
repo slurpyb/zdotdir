@@ -1,0 +1,228 @@
+#!/usr/bin/env zsh
+# Autoloaded function body; all preparation completes before Pi starts.
+emulate -L zsh
+setopt extendedglob
+autoload -Uz _agent_skill_path _agent_text _agent_skill_body _agent_rosie _agent_ref_check _agent_prepare_reference
+
+local provider=openai model=openai/gpt-6-astra effort=medium
+local plugins_dir="${PLUGINS:-${AGENT_PLUGINS_DIR:-}}"
+plugins_dir="${plugins_dir/#\~/$HOME}"
+local REPLY arg value kind item file body label link selection
+local -i i group_start=0 group_end=0
+local -a flags messages system_inputs system_texts reply items
+local -a kinds sources labels selections resolved contents
+local -a resources invoked contexts references attachments prompt_parts pi_args registered
+
+while (( $# )); do
+    # Support = when a wrapper value starts with a dash or contains punctuation.
+    case "$1" in
+        (--add=*|-a-add=*|-s=*|-w=*|--with=*|--ref=*|--reference=*|--context=*|-l=*|--label=*|--system=*|---system=*)
+            arg="${1%%=*}" value="${1#*=}"
+            shift
+            ;;
+        (--add|-a-add|-s|-w|--with|--ref|--reference|--context|-l|--label|--system|---system)
+            arg="$1"
+            if (( $# < 2 )) || [[ -z "$2" || "$2" == -* ]]; then
+                print -u2 -r -- "agent: $arg requires a value (use $arg=VALUE for leading dashes)"
+                return 2
+            fi
+            value="$2"
+            shift 2
+            ;;
+        (--bare)
+            flags+=(--no-extensions --no-skills); shift
+            group_start=0; continue ;;
+        (--sol|--luna)
+            model="$provider/gpt-6-${1#--}"; shift
+            group_start=0; continue ;;
+        (--low|--max)
+            effort="${1#--}"; shift
+            group_start=0; continue ;;
+        (--)
+            shift; messages+=("$@"); break ;;
+        (--provider|--model|--api-key|--system-prompt|--append-system-prompt|--name|-n|--session|--session-id|--fork|--session-dir|--models|--tools|-t|--exclude-tools|-xt|--thinking|--export|--extension|-e|--skill|--prompt-template|--theme|--use-theme|--tui-mode|--mode)
+            if (( $# < 2 )); then
+                print -u2 -r -- "agent: $1 requires a value"; return 2
+            fi
+            flags+=("$1" "$2"); shift 2
+            group_start=0; continue ;;
+        (--help|-h|--version|-v|--continue|-c|--resume|-r|--no-session|--no-tools|-nt|--no-builtin-tools|-nbt|--print|-p|--no-extensions|-ne|--no-mcp|--no-skills|-ns|--no-prompt-templates|-np|--no-themes|--no-context-files|-nc|--verbose|--approve|-a|--no-approve|-na|--offline)
+            flags+=("$1"); shift
+            group_start=0; continue ;;
+        (--*)
+            # Match Pi's optional-value rule for extension-defined long flags.
+            arg="$1"; flags+=("$1"); shift
+            if [[ "$arg" != *=* ]] && (( $# )) && [[ "$1" != (-*|@*) ]]; then
+                flags+=("$1"); shift
+            fi
+            group_start=0; continue ;;
+        (-*)
+            flags+=("$1"); shift
+            group_start=0; continue ;;
+        (*)
+            messages+=("$1"); shift
+            group_start=0; continue ;;
+    esac
+
+    if [[ -z "${value//[[:space:]]/}" ]]; then
+        print -u2 -r -- "agent: $arg requires a nonempty value"; return 2
+    fi
+    if [[ "$arg" == (-l|--label) ]]; then
+        if (( ! group_start )) || [[ "$kinds[group_start]" != (reference|context) ]]; then
+            print -u2 -r -- 'agent: --label must follow --reference or --context'; return 2
+        fi
+        for (( i=group_start; i<=group_end; i++ )); do labels[i]="$value"; done
+        continue
+    fi
+    if [[ "$arg" == (--system|---system) ]]; then
+        system_inputs+=("$value"); group_start=0; continue
+    fi
+    case "$arg" in
+        (--add|-a-add) kind=plugin ;;
+        (-s|-w) kind=skill ;;
+        (--with) kind=with ;;
+        (--ref) kind=ref ;;
+        (--reference) kind=reference ;;
+        (--context) kind=context ;;
+    esac
+    if [[ "$kind" == (reference|context) ]]; then
+        items=("$value") # Literal URLs and filenames may contain commas.
+    else
+        if [[ "$value" == (,*|*,|*,,*) ]]; then
+            print -u2 -r -- "agent: empty item in $arg list"; return 2
+        fi
+        items=("${(@s:,:)value}")
+        for (( i=1; i<=${#items}; i++ )); do
+            items[i]="${${items[i]##[[:space:]]#}%%[[:space:]]#}"
+            [[ -n "$items[i]" ]] || { print -u2 -r -- "agent: empty item in $arg list"; return 2; }
+        done
+    fi
+    if [[ "$arg" == -s ]] && (( group_start )) && [[ "$kinds[group_start]" == (ref|reference) ]]; then
+        for (( i=group_start; i<=group_end; i++ )); do
+            [[ -z "$selections[i]" ]] || selections[i]+=,
+            selections[i]+="${(j:,:)items}"
+        done
+        continue
+    fi
+    group_start=$((${#kinds} + 1))
+    for item in "${items[@]}"; do
+        kinds+=("$kind"); sources+=("$item"); labels+=(''); selections+=('')
+    done
+    group_end=${#kinds}
+done
+
+# Preflight local inputs and required labels before any Rosie/project mutations.
+for (( i=1; i<=${#kinds}; i++ )); do
+    value="$sources[i]"
+    file="${value/#\~/$HOME}"
+    case "$kinds[i]" in
+        (plugin)
+            if [[ "$value" != */* && "$value" != *:* ]]; then
+                if [[ -n "$plugins_dir" && -d "$plugins_dir/$value" ]]; then
+                    file="${plugins_dir:A}/$value"
+                elif [[ ! -e "$file" ]]; then
+                    print -u2 -r -- "agent: plugin '$value' not found under ${plugins_dir:-PLUGINS (unset)}"; return 2
+                fi
+            fi
+            [[ ! -e "$file" ]] || file="${file:A}"
+            resolved[i]="$file"
+            ;;
+        (skill|with)
+            _agent_skill_path "$value" "$plugins_dir" || return
+            resolved[i]="$REPLY"
+            _agent_text "$REPLY" || return
+            if [[ "$kinds[i]" == with ]]; then
+                _agent_skill_body "$resolved[i]" || return
+                contents[i]="$REPLY"
+            fi
+            ;;
+        (context)
+            if [[ "$value" == (http://*|https://*) ]]; then
+                print -u2 -r -- 'agent: --context requires a local text file, not a URL'; return 2
+            fi
+            _agent_text "$file" || return
+            contents[i]="<file>
+Path: ${file:A}
+$REPLY
+</file>"
+            ;;
+        (reference)
+            if [[ -z "$labels[i]" ]]; then
+                print -u2 -r -- 'agent: each --reference requires -l / --label with reading guidance'; return 2
+            fi
+            ;;
+    esac
+done
+for value in "${system_inputs[@]}"; do
+    file="${value/#\~/$HOME}"
+    if [[ -f "$file" ]]; then
+        _agent_text "$file" || return
+        system_texts+=("$REPLY")
+    elif [[ "$value" == (/*|./*|../*|\~/*) ]]; then
+        print -u2 -r -- "agent: system prompt file not found: $value"; return 2
+    else
+        system_texts+=("$value")
+    fi
+done
+
+for (( i=1; i<=${#kinds}; i++ )); do
+    case "$kinds[i]" in
+        (plugin) resources+=(--extension "$resolved[i]") ;;
+        (skill|with)
+            if (( ! ${registered[(Ie)$resolved[i]]} )); then
+                resources+=(--skill "$resolved[i]"); registered+=("$resolved[i]")
+            fi
+            [[ "$kinds[i]" != with ]] || invoked+=("$contents[i]")
+            ;;
+        (context)
+            body="$contents[i]"
+            [[ -z "$labels[i]" ]] || body="$labels[i]"$'\n'"$body"
+            contexts+=("$body")
+            ;;
+        (ref)
+            items=("${(@s:,:)selections[i]}")
+            (( ${#items} )) || items=('')
+            for selection in "${items[@]}"; do
+                _agent_rosie "$sources[i]" ref "$selection" "$PWD" || return
+                _agent_ref_check "$sources[i]" "$selection" || return
+            done
+            ;;
+        (reference)
+            reply=()
+            _agent_prepare_reference "$sources[i]" "$selections[i]" "$plugins_dir" || return
+            label="${labels[i]//$'\n'/ }"
+            label="${label//\\/\\\\}"
+            label="${label//\[/\\[}"
+            label="${label//\]/\\]}"
+            for file in "${reply[@]}"; do
+                link="${file#${PWD:A}/}"
+                link="${link//\%/%25}"
+                link="${link// /%20}"
+                link="${link//\#/%23}"
+                link="${link//\?/%3F}"
+                link="${link//</%3C}"
+                link="${link//>/%3E}"
+                references+=("- [$label](<$link>)")
+            done
+            ;;
+    esac
+done
+
+pi_args=(--model "$model" --thinking "$effort" "${flags[@]}" "${resources[@]}")
+(( ! ${#system_texts} )) || pi_args+=(--append-system-prompt "${(F)system_texts}")
+if (( ${#invoked} || ${#contexts} || ${#references} )); then
+    prompt_parts=("${invoked[@]}")
+    for value in "${messages[@]}"; do
+        if [[ "$value" == @* ]]; then
+            attachments+=("$value") # Preserve native Pi attachment behavior.
+        else
+            prompt_parts+=("$value")
+        fi
+    done
+    prompt_parts+=("${contexts[@]}")
+    (( ! ${#references} )) || prompt_parts+=("References (read when relevant):"$'\n'"${(F)references}")
+    pi_args+=("${attachments[@]}${(pj:\n\n:)prompt_parts}")
+elif (( ${#messages} )); then
+    pi_args+=("${messages[@]}")
+fi
+pi "${pi_args[@]}"

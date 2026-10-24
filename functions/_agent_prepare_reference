@@ -1,0 +1,100 @@
+# Prepare invocation-only references. Rosie may modify a disposable staging
+# project, never the real project's AGENTS.md. Return copied entry paths in reply.
+emulate -L zsh
+autoload -Uz _agent_remote_source _agent_rosie _agent_copy_reference _agent_skill_path
+local source="$1" selection="$2" plugins_dir="$3"
+local local_source="${source/#\~/$HOME}" selected stage mode root entry link name
+local REPLY
+local -a remote selections entries
+reply=()
+if [[ -e "$local_source" ]]; then
+    if [[ -n "$selection" ]]; then
+        print -u2 -r -- 'agent: use the local skill path directly; -s after --reference selects remote skills'
+        return 2
+    fi
+    _agent_copy_reference "$local_source"
+    return $?
+fi
+if _agent_remote_source "$source"; then
+    remote=("${reply[@]}")
+    reply=()
+    selections=("${(@s:,:)selection}")
+    (( ${#selections} )) || selections=('')
+    for selected in "${selections[@]}"; do
+        stage=$(mktemp -d "${TMPDIR:-/tmp}/agent-rosie.XXXXXXXX") || return
+        stage="${stage:A}"
+        {
+            print -r -- '# Disposable reference staging' > "$stage/AGENTS.md"
+            if [[ "$remote[2]" == --npm ]]; then
+                if [[ -n "$selected" || ! -d "$PWD/node_modules" ]]; then
+                    print -u2 -r -- 'agent: npm references need local node_modules and do not select remote skills'
+                    return 2
+                fi
+                # Rosie reads installed npm docs; only its generated reference
+                # copies/index live in staging, not the source node_modules.
+                ln -s -- "$PWD/node_modules" "$stage/node_modules" || return
+            fi
+            mode=skill
+            [[ -n "$selected" && "$remote[2]" != --npm ]] || mode=ref
+            _agent_rosie "$source" "$mode" "$selected" "$stage" || return
+            if [[ "$mode" == ref ]]; then
+                root="$stage/.agents/references"
+            else
+                root="$stage/.agents/skills"
+            fi
+            if [[ "${root:A}" != "$stage/"* ]]; then
+                print -u2 -r -- 'agent: remote resource root escapes staging'
+                return 2
+            fi
+            # Inspect the whole physical staging tree, not only the selected
+            # resource: an internal directory symlink can hide another symlink
+            # in a sibling directory that cp -L would otherwise follow.
+            for link in "$stage"/**/*(ND@); do
+                [[ "$remote[2]" != --npm || "$link" != "$stage/node_modules" ]] || continue
+                if [[ "${link:A}" != "$stage/"* ]]; then
+                    print -u2 -r -- "agent: remote symlink escapes installation: $link"
+                    return 2
+                fi
+            done
+            entries=("$root"/*(N))
+            if (( ! ${#entries} )); then
+                print -u2 -r -- "agent: Rosie produced no resource for $source $selected"
+                return 2
+            fi
+            for entry in "${entries[@]}"; do
+                _agent_copy_reference "$entry" || return
+            done
+        } always {
+            rm -rf -- "$stage"
+        }
+    done
+    return 0
+fi
+reply=()
+if [[ "$source" == http://* || "$source" == https://* ]]; then
+    if [[ -n "$selection" ]]; then
+        print -u2 -r -- 'agent: -s requires a remote repository, not a document URL'
+        return 2
+    fi
+    stage=$(mktemp -d "${TMPDIR:-/tmp}/agent-download.XXXXXXXX") || return
+    {
+        name="${source%%\?*}"
+        name="${name%%\#*}"
+        name="${name:t}"
+        [[ -n "$name" && "$name" != . && "$name" != .. ]] || name=reference.txt
+        command curl --fail --silent --show-error --location \
+            --proto '=http,https' --proto-redir '=http,https' \
+            --connect-timeout 15 --max-time 120 --max-filesize 20971520 \
+            --output "$stage/$name" -- "$source" || return
+        _agent_copy_reference "$stage/$name" || return
+    } always {
+        rm -rf -- "$stage"
+    }
+    return 0
+fi
+if [[ -n "$selection" ]]; then
+    print -u2 -r -- 'agent: remote skill selection requires a repository source'
+    return 2
+fi
+_agent_skill_path "$source" "$plugins_dir" || return
+_agent_copy_reference "$REPLY"
