@@ -1,0 +1,16 @@
+#!/usr/bin/env zsh
+() (
+  emulate -L zsh
+  local slug="${1#https://github.com/}"
+  slug="${slug%/}"
+  slug="${slug%.git}"
+
+  local owner="${slug%%/*}"
+  local repo="${slug#*/}"
+
+  [[ "$slug" == */* ]] || {
+    print -u2 "Usage: gclone <github-url|owner/repo>"
+    return 1
+  }
+    gh repo clone "$owner/$repo" "$HOME/repos/$owner/$repo"
+)

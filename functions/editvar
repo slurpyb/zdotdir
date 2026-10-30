@@ -1,0 +1,12 @@
+editvar() {
+  local tmp
+  tmp=$(mktemp /tmp/pi-prompt.XXXXXX) || return 1
+
+  ttt "$tmp" </dev/tty >/dev/tty || return 1
+
+  cat -- "$tmp"
+
+  if [[ "$tmp" == /tmp/pi-prompt.* && -f "$tmp" && ! -L "$tmp" ]]; then
+    rm -f -- "$tmp"
+  fi
+}

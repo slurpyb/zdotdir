@@ -1,0 +1,328 @@
+# Autoloaded Zsh function. Subshell keeps options, helpers and environment local.
+() (
+  emulate -L zsh
+  setopt extendedglob
+  export GH_HOST=github.com GH_PROMPT_DISABLED=1 GIT_TERMINAL_PROMPT=0
+
+  _ghn_error() { print -ru2 -- "ghn: $*"; return 1; }
+  _ghn_ask() {
+    local fd
+    # /dev/tty is independent of stdin (which may contain JSON).
+    { exec {fd}<>/dev/tty } 2>/dev/null || {
+      _ghn_error "A terminal is required: $1 Supply explicit name/source or disable file generation when source differs."; return 1
+    }
+    print -nu $fd -- "$1 "
+    IFS= read -r -u $fd reply
+    local rc=$?
+    exec {fd}>&-
+    (( rc == 0 )) || { _ghn_error 'Cancelled (terminal input ended).'; return 1; }
+  }
+  _ghn_help() {
+    print -r -- 'Usage: ghn OWNER[/NAME] [options]
+       ghn OWNER NAME [options]
+       ghn --username OWNER [--name NAME] [options]
+Owners: fsl = full-snack-lab (org), sb = slurpyb (personal).
+Full names also work; no other owners are accepted (including JSON).
+  --public / --no-public       Public / private (default: private)
+  --source PATH / --no-source  Use a Git repository / decline detection
+  --readme / --no-readme       Create missing README.md (default: yes)
+  --push / --no-push           Push current branch (default: no)
+  --no-ignores                 Disable .gitignore generation
+  --ignore ENTRY              Custom ignore entries (repeatable)
+  --json OBJECT               JSON object; use --json - to read stdin
+  --help                      Show this help
+
+JSON keys: username (required string), name (string), public/readme/push
+(booleans), source (path string or false), ignores (false or string array).
+Omitted ignores detects environments. Omitted source may prompt at Git root.
+Omitted name generates three words and requires terminal confirmation.
+JSON cannot be combined with other arguments. No null values are accepted.
+
+Examples:
+  ghn fsl example --push
+  ghn sb --no-source
+  ghn --json '\''{"username":"full-snack-lab","name":"example","source":false,"push":false}'\''
+
+Files default to the current directory; differing source prompts for location.
+No init, staging, commits, force pushes, or remote overwrites. Public --push
+publishes the current branch and its history. GitHub.com only.'
+  }
+
+  local username='' name='' source_mode=auto source_dir=''
+  local public=false readme=true push=false ignores=auto
+  local key value json reply root remotes branch target cwd=${PWD:A} item existing
+  local -a entries create_args words1 words2 words3 positional
+  local -A seen
+  if [[ ${1-} == --help && $# == 1 ]]; then _ghn_help; return 0; fi
+  if [[ ${1-} == --json ]]; then
+    (( $# == 2 )) || { _ghn_error 'Use --json OBJECT or --json - alone.'; return 2; }
+    (( $+commands[jq] )) || { _ghn_error 'JSON input requires jq; install it or use ordinary arguments.'; return 2; }
+    json=$2
+    if [[ $json == - ]]; then
+      [[ ! -t 0 ]] || { _ghn_error 'Pipe a JSON object to --json -.'; return 2; }
+      json=$(command cat) || return 2
+    fi
+    # Validate the entire stream before extracting any data. Reject NUL/newlines
+    # in strings so shell storage and line-based ignore entries are lossless.
+    print -r -- "$json" | command jq -e -s '
+      def text: type == "string" and length > 0 and (test("[\u0000-\u001f\u007f]") | not);
+      length == 1 and (.[0] | type == "object" and
+        (keys - ["username","name","public","source","readme","push","ignores"] | length == 0) and
+        (.username | text) and
+        (to_entries | all(.[];
+          if .key == "username" or .key == "name" then .value | text
+          elif .key == "source" then .value == false or (.value | text)
+          elif .key == "ignores" then .value == false or
+            (.value | type == "array" and all(.[]; text))
+          else .value | type == "boolean" end)))
+    ' >/dev/null || { _ghn_error 'Invalid JSON: expected one object with documented keys/types; strings must be nonempty and contain no control characters. See ghn --help.'; return 2; }
+    # Streaming preserves duplicate object keys that normal jq parsing discards.
+    # Count completion of each root member (scalar/empty container, or container end).
+    print -r -- "$json" | command jq --stream -e -s '
+      [.[] | select((length == 2 and (.[0] | length) == 1) or
+                    (length == 1 and (.[0] | length) == 2)) | .[0][0]] |
+      length == (unique | length)
+    ' >/dev/null || { _ghn_error 'Duplicate JSON keys are not allowed; supply each parameter once.'; return 2; }
+    for key in username name public source readme push ignores; do
+      print -r -- "$json" | command jq -e --arg key "$key" 'has($key)' >/dev/null || continue
+      value=$(print -r -- "$json" | command jq -r --arg key "$key" '.[$key]') || return 2
+      case $key in
+        username) username=$value ;;
+        name) name=$value ;;
+        public) public=$value ;;
+        readme) readme=$value ;;
+        push) push=$value ;;
+        source)
+          if [[ $(print -r -- "$json" | command jq -r '.source | type') == boolean ]]; then source_mode=none
+          else source_mode=explicit; source_dir=$value; fi ;;
+        ignores)
+          if [[ $value == false ]]; then ignores=none
+          else
+            ignores=custom
+            entries=("${(@f)$(print -r -- "$json" | command jq -r '.ignores[]')}")
+            entries=("${(@)entries:#}")
+          fi ;;
+      esac
+    done
+  else
+    while (( $# )); do
+      key=$1; shift
+      case $key in
+        --username|--name|--source|--ignore)
+          (( $# )) && [[ -n $1 && $1 != --* ]] || { _ghn_error "$key needs a value."; return 2; }
+          value=$1; shift ;;
+        --public|--no-public|--readme|--no-readme|--push|--no-push|--no-source|--no-ignores) value='' ;;
+        -*) _ghn_error "Unknown argument: $key. See ghn --help."; return 2 ;;
+        *) positional+=("$key"); continue ;;
+      esac
+      item=${key#--}; item=${item#no-}
+      [[ $item == ignore ]] && item=ignores
+      if [[ -n ${seen[$item]-} && ! ( $key == --ignore && ${seen[$item]} == --ignore ) ]]; then
+        _ghn_error "Repeated/conflicting option: $key"; return 2
+      fi
+      seen[$item]=$key
+      case $key in
+        --username) username=$value ;; --name) name=$value ;;
+        --source) source_mode=explicit; source_dir=$value ;; --no-source) source_mode=none ;;
+        --public) public=true ;; --no-public) public=false ;;
+        --readme) readme=true ;; --no-readme) readme=false ;;
+        --push) push=true ;; --no-push) push=false ;;
+        --no-ignores) ignores=none ;; --ignore) ignores=custom; entries+=("$value") ;;
+      esac
+    done
+    if (( $#positional )); then
+      if [[ -n $username || -n $name ]] || (( $#positional > 2 )); then
+        _ghn_error 'Use OWNER[/NAME] or OWNER NAME, or --username/--name; do not mix naming forms.'; return 2
+      fi
+      username=$positional[1]
+      if [[ $username == */* ]]; then
+        (( $#positional == 1 )) && [[ $username != */ ]] || {
+          _ghn_error 'Use OWNER/NAME with exactly one owner and one nonempty name.'; return 2
+        }
+        name=${username#*/}; username=${username%%/*}
+      elif (( $#positional == 2 )); then
+        name=$positional[2]
+        [[ -n $name ]] || { _ghn_error 'Name cannot be empty; omit it to generate one.'; return 2; }
+      fi
+    fi
+  fi
+  case $username in
+    fsl|full-snack-lab) username=full-snack-lab ;;
+    sb|slurpyb) username=slurpyb ;;
+    *) _ghn_error 'Choose an owner: fsl (full-snack-lab) or sb (slurpyb). No other owners are allowed.'; return 2 ;;
+  esac
+  # -C must not be overridden by a caller's repository-specific Git environment.
+  for item in GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE; do
+    if [[ -n ${(P)item} ]]; then
+      _ghn_error "Unset $item before running ghn; Git operations must use the selected source."; return 1
+    fi
+  done
+  for item in git gh; do
+    (( $+commands[$item] )) || { _ghn_error "$item is required."; return 1; }
+  done
+  if [[ -z $name ]]; then
+    words1=(bright calm clever cozy gentle lucky mellow quiet sunny vivid)
+    words2=(cedar coral maple meadow moon ocean river silver willow winter)
+    words3=(badger falcon fox garden harbor otter panda robin sparrow trail)
+    name="${words1[RANDOM % $#words1 + 1]}-${words2[RANDOM % $#words2 + 1]}-${words3[RANDOM % $#words3 + 1]}"
+    _ghn_ask "Repository name: $name. Enter accepts, type a replacement, or ! to cancel:" || return 1
+    [[ $reply != '!' ]] || { _ghn_error 'Cancelled.'; return 1; }
+    [[ -z $reply ]] || name=$reply
+  fi
+  [[ $name == [A-Za-z0-9._-]## && $name != (.|..|*.git) && ${#name} -le 100 ]] || {
+    _ghn_error 'Name must be 1–100 ASCII letters, digits, dots, underscores or hyphens; not ., .., or ending .git.'; return 2
+  }
+  if [[ $source_mode == auto ]]; then
+    root=$(command git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
+    if [[ -n $root && ${root:A} == $cwd ]] &&
+        command git -C "$cwd" rev-parse --verify HEAD >/dev/null 2>&1; then
+      remotes=$(command git -C "$cwd" remote) || return 1
+      if [[ -z $remotes ]]; then
+        _ghn_ask "Use Git root $cwd as source? [Y/n]" || return 1
+        case $reply in
+          ''|[Yy]|[Yy][Ee][Ss]) source_dir=$cwd ;;
+          [Nn]|[Nn][Oo]) ;;
+          *) _ghn_error 'Cancelled: expected yes or no.'; return 1 ;;
+        esac
+      fi
+    fi
+  fi
+  if [[ -n $source_dir ]]; then
+    [[ -d $source_dir ]] || { _ghn_error "Source directory not found: $source_dir"; return 1; }
+    source_dir=${source_dir:A}
+    root=$(command git -C "$source_dir" rev-parse --show-toplevel 2>/dev/null)
+    [[ -n $root && ${root:A} == $source_dir ]] || {
+      _ghn_error 'Source must be the exact root of an existing non-bare Git repository (not a nested directory).'; return 1
+    }
+    remotes=$(command git -C "$source_dir" remote) || return 1
+    local -a remote_names
+    remote_names=("${(@f)remotes}")
+    (( ! ${remote_names[(Ie)origin]} )) || { _ghn_error 'Source already has origin; nothing will be overwritten. Choose another source or --no-source.'; return 1; }
+  fi
+  if [[ $push == true ]]; then
+    [[ -n $source_dir ]] || { _ghn_error '--push requires a selected source with a commit.'; return 1; }
+    command git -C "$source_dir" rev-parse --verify HEAD >/dev/null 2>&1 || {
+      _ghn_error 'Cannot push: source has no commits. Create a commit yourself first.'; return 1
+    }
+    branch=$(command git -C "$source_dir" symbolic-ref --quiet --short HEAD) || {
+      _ghn_error 'Cannot push detached HEAD; check out a branch first.'; return 1
+    }
+    [[ $public != true ]] || print -ru2 -- "ghn: --push explicitly authorizes publishing branch $branch and its history PUBLICLY."
+  fi
+  target=$cwd
+  if [[ -n $source_dir && $source_dir != $cwd && ( $readme == true || $ignores != none ) ]]; then
+    _ghn_ask "Source is $source_dir but current directory is $cwd. Generate files in [c]urrent or [s]ource? (anything else cancels)" || return 1
+    case $reply in c) ;; s) target=$source_dir ;; *) _ghn_error 'Cancelled.'; return 1 ;; esac
+  fi
+  for item in "${entries[@]}"; do
+    [[ -n $item && $item != *[[:cntrl:]]* ]] || { _ghn_error 'Ignore entries must be nonempty single lines without control characters.'; return 2; }
+  done
+  if [[ $ignores != none && ( -L $target/.gitignore || ( -e $target/.gitignore && ! -f $target/.gitignore ) ) ]]; then
+    _ghn_error 'Refusing to modify a symlink or non-regular .gitignore.'; return 1
+  fi
+  # Authenticate and detect accessible collisions before writing local files.
+  command gh auth status --hostname github.com >/dev/null 2>&1 || {
+    _ghn_error 'GitHub authentication unavailable. Run gh auth login --hostname github.com.'; return 1
+  }
+  local full="$username/$name" protocol url push_url
+  if [[ -n $source_dir ]]; then
+    protocol=$(command gh config get git_protocol --host github.com) || {
+      _ghn_error 'Cannot read gh Git protocol. Check gh config get git_protocol --host github.com.'; return 1
+    }
+    case $protocol in
+      https) url="https://github.com/$full.git" ;;
+      ssh) url="git@github.com:$full.git" ;;
+      *) _ghn_error "Unsupported gh Git protocol: $protocol (expected https or ssh)."; return 1 ;;
+    esac
+    # --get-url only expands configuration; it never contacts the remote.
+    # Push-specific rewrites are checked again after origin is configured.
+    push_url=$(command git -C "$source_dir" ls-remote --get-url "$url") || return 1
+    case $push_url in
+      "https://github.com/$full.git"|"git@github.com:$full.git"|"ssh://git@github.com/$full.git") ;;
+      *) _ghn_error 'Git URL rewriting redirects the proposed origin outside the intended GitHub repository. Inspect your Git URL configuration; nothing was created.'; return 1 ;;
+    esac
+  fi
+  if command gh repo view "$full" >/dev/null 2>&1; then
+    _ghn_error "$full already exists; it will not be adopted or modified. Choose another name."; return 1
+  fi
+  # Creation remains authoritative: a failed view may also mean no access/network.
+  if [[ $readme == true && ! -e $target/README.md && ! -L $target/README.md ]]; then
+    ( setopt noclobber; print -r -- "# $name" > "$target/README.md" ) || return 1
+    print -ru2 -- "ghn: Created $target/README.md; it is uncommitted and will NOT be included in a push."
+  fi
+  if [[ $ignores != none ]]; then
+    if [[ $ignores == auto ]]; then
+      entries=('.env*' '.envrc' '.DS_Store' '.infisical' '.infisical-cache/' '.pyenv/')
+      local -a python_files js_files
+      python_files=("$target"/*.py(N))
+      js_files=("$target"/*.(js|jsx|ts|tsx|mjs|cjs)(N))
+      if [[ -e $target/pyproject.toml || -e $target/uv.lock || -e $target/requirements.txt || -e $target/setup.py || -d $target/.venv ]] ||
+          (( $#python_files )); then
+        entries+=('__pycache__/' '*.py[cod]' '.venv/' '.pytest_cache/' '.mypy_cache/' '.ruff_cache/' '.coverage' 'htmlcov/')
+      fi
+      if [[ -e $target/package.json || -e $target/tsconfig.json ]] ||
+          (( $#js_files )); then
+        entries+=('node_modules/' 'dist/' 'coverage/' '*.tsbuildinfo' '.npm/' '.yarn/unplugged/' '.pnpm-store/')
+      fi
+    fi
+    [[ ! -L $target/.gitignore && ( ! -e $target/.gitignore || -f $target/.gitignore ) ]] || {
+      _ghn_error 'Refusing to modify a symlink or non-regular .gitignore.'; return 1
+    }
+    existing=''
+    [[ ! -f $target/.gitignore ]] || existing=$(<"$target/.gitignore")
+    local -a old_entries additions
+    old_entries=("${(@f)existing}")
+    old_entries=("${(@)old_entries%$'\r'}")
+    for item in "${entries[@]}"; do
+      if (( ! ${old_entries[(Ie)$item]} )); then
+        additions+=("$item"); old_entries+=("$item")
+      fi
+    done
+    if (( $#additions )); then
+      # A separating newline also handles an existing file without final newline.
+      { [[ ! -s $target/.gitignore ]] || print; print -rl -- "${additions[@]}"; } >> "$target/.gitignore" || return 1
+      print -ru2 -- "ghn: Updated $target/.gitignore (uncommitted). Ignore rules do not untrack committed files."
+    fi
+  fi
+  create_args=(repo create "$full" --private)
+  [[ $public != true ]] || create_args[-1]=--public
+  # Never combine remote README initialization with local history.
+  command gh "${create_args[@]}" >/dev/null || {
+    _ghn_error "Creation failed for $full (collision, permissions or network). Local generated files remain. If the response was lost, inspect https://github.com/$full before retrying; no existing repository will be adopted."; return 1
+  }
+  print -r -- "Created https://github.com/$full"
+  if [[ -n $source_dir ]]; then
+    if ! command git -C "$source_dir" remote add origin "$url"; then
+      _ghn_error "https://github.com/$full WAS CREATED; remote setup failed. Inspect git -C ${(q)source_dir} remote -v, then add origin ${(q)url} manually. Nothing was deleted."; return 1
+    fi
+    push_url=$(command git -C "$source_dir" remote get-url --push origin)
+    case $push_url in
+      "https://github.com/$full.git"|"git@github.com:$full.git"|"ssh://git@github.com/$full.git") ;;
+      *) _ghn_error "https://github.com/$full WAS CREATED; origin push URL differs (possibly Git URL rewriting). Inspect git -C ${(q)source_dir} remote -v before pushing manually."; return 1 ;;
+    esac
+    if [[ $push == true ]]; then
+      if [[ $push_url != https://* ]]; then
+        # OpenSSH takes the FIRST value of an option. Put BatchMode before
+        # user arguments, preserving literal argv rather than evaluating code.
+        local ssh_command=${GIT_SSH_COMMAND:-$(command git -C "$source_dir" config --get core.sshCommand)}
+        [[ -n $ssh_command ]] || ssh_command=${(q)${GIT_SSH:-ssh}}
+        local -a ssh_args
+        ssh_args=("${(@Q)${(z)ssh_command}}")
+        if [[ ${ssh_args[1]:t} != ssh || $ssh_command == *[\$\`\;\|\&\<\>\(\)\~]* ]]; then
+          _ghn_error "https://github.com/$full WAS CREATED and origin configured; automatic SSH push requires an OpenSSH command with literal arguments/absolute paths, not a shell expression or wrapper. Push manually with your custom SSH command."; return 1
+        fi
+        ssh_args=("$ssh_args[1]" -oBatchMode=yes "${(@)ssh_args[2,-1]}")
+        ssh_args=("${(@q)ssh_args}")
+        export GIT_SSH_COMMAND="${(j: :)ssh_args}"
+      fi
+      command git -C "$source_dir" push --no-follow-tags --recurse-submodules=no --set-upstream origin "refs/heads/${branch}:refs/heads/${branch}" || {
+        _ghn_error "https://github.com/$full WAS CREATED and origin configured, but push failed. Fix access/network, then retry: git -C ${(q)source_dir} push --set-upstream origin ${(q)branch}. Nothing was rolled back."; return 1
+      }
+    else
+      print -r -- "Origin configured in $source_dir; not pushed (--push opts in)."
+      print -r -- "When ready: git -C ${(q)source_dir} push --no-follow-tags --recurse-submodules=no --set-upstream origin HEAD"
+    fi
+  else
+    print -r -- 'No local source attached; no files uploaded.'
+  fi
+) "$@"

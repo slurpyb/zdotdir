@@ -1,0 +1,22 @@
+#compdef ghn
+# Offline completion only: Tab must never authenticate or query GitHub.
+# Inherit the completion system's options (notably extendedglob).
+local -a positional
+positional=('(--username --name --json)1:owner (fsl=org, sb=personal):(fsl sb full-snack-lab slurpyb)')
+[[ ${words[2]-} == */* ]] || positional+=('(--username --name --json)2:repository name:')
+_arguments \
+  '(- *)--help[show usage and examples]' \
+  '(- *)--json[JSON object, or - to read stdin]:JSON object or -:' \
+  '(1 2)--username[owner (fsl=org, sb=personal)]:owner:(fsl sb full-snack-lab slurpyb)' \
+  '(1 2)--name[repository name (otherwise generate and confirm)]:name:' \
+  '(--public --no-public)--public[create a public repository]' \
+  '(--public --no-public)--no-public[create a private repository (default)]' \
+  '(--source --no-source)--source[existing Git root]:source directory:_directories' \
+  '(--source --no-source)--no-source[decline local source detection]' \
+  '(--readme --no-readme)--readme[create missing local README (default)]' \
+  '(--readme --no-readme)--no-readme[do not generate README]' \
+  '(--push --no-push)--push[push committed current branch; publishes history if public]' \
+  '(--push --no-push)--no-push[do not push (default)]' \
+  '(--ignore --no-ignores)--no-ignores[do not generate ignore rules]' \
+  '(--no-ignores)*--ignore[custom ignore entry; replaces generated defaults]:ignore entry:' \
+  "${positional[@]}"

@@ -1,0 +1,4 @@
+# Compatibility name; ghn owns parsing and the owner allowlist.
+emulate -L zsh
+autoload -Uz ghn
+ghn "$@"

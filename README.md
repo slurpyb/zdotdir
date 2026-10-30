@@ -15,6 +15,15 @@ I like my Zsh to behave like [Fish][fish], so there's a lot of features that wil
 - A conf.d directory so that .zshrc isn't a cluttered mess
 - My custom plugins in a separate `$ZSH_CUSTOM` project similar to how OMZ works
 
+## GitHub repository helper
+
+Use `ghn fsl example --push` from a committed Git root, then press Enter to use
+it as the source. `fsl` means `full-snack-lab` (org); `sb` means `slurpyb` (personal).
+These are the only supported owners. Use `ghn sb` or `ghn fsl` to generate a name,
+or omit `--push` to connect without uploading. Private by default; `gh` is unchanged.
+Tab completes options and source directories. See [the ghnew guide](GHNEW.md) for
+details, safe local file generation, and the JSON automation interface.
+
 ## Installation
 
 Since this is my personal `$ZDOTDIR`, this installation procedure is mostly for my personal use.
@@ -156,13 +165,10 @@ I use Space Gray:
 [awesome-zsh-plugins]: https://github.com/unixorn/awesome-zsh-plugins
 [fish]: https://fishshell.com
 [dotfiles]: https://dotfiles.github.io/
-[homebrew]: https://brew.sh
 [iterm2-colors]: https://github.com/mbadolato/iTerm2-Color-Schemes
 [nerd-fonts]: https://github.com/ryanoasis/nerd-fonts
 [oh-my-zsh]: https://github.com/ohmyzsh/ohmyzsh
 [prezto]: https://github.com/sorin-ionescu/prezto
-[starship-toml]: https://github.com/mattmc3/zdotdir/blob/main/prompt/starship.toml
-[starship]: https://starship.rs
 [supercharge-zsh]: https://blog.callstack.io/supercharge-your-terminal-with-zsh-8b369d689770
 [zdotdir_gif]: https://raw.githubusercontent.com/mattmc3/zdotdir/resources/img/zdotdir.gif
 [zephyr]: https://github.com/zshzoo/zephyr

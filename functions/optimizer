@@ -1,0 +1,32 @@
+#!/usr/bin/env zsh
+# Autoloaded function body; all preparation completes before Pi starts.
+emulate -L zsh
+setopt extendedglob
+autoload -Uz agent
+
+       # 1. Create a temporary file for the draft
+       local tmp_prompt=$(mktemp)
+
+       # 2. Open the draft in ttt
+       ttt "$tmp_prompt"
+
+       # Read the content
+       local prompt_text=$(cat "$tmp_prompt")
+
+       # Prevent running if the file is empty
+       if [ -z "$prompt_text" ]; then
+           echo "Prompt is empty. Aborting."
+           rm "$tmp_prompt"
+           return 1
+       fi
+
+       EFFORT=high PROVIDER=openai MODEL=gpt-6.1-sol \
+       agent \
+           --add "session-wizardry,project-lifecycle" \
+           --with "prompt-optimizer" \
+           --thinking "$EFFORT" \
+           --model "$PROVIDER/$MODEL" \
+           "$prompt_text"
+
+       # Cleanup
+       rm "$tmp_prompt"

@@ -1,0 +1,4 @@
+#compdef ghnew
+# Compatibility completion; inherit completion options.
+autoload -Uz _ghn
+_ghn "$@"
